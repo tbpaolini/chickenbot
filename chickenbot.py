@@ -163,6 +163,7 @@ class ChickenBot():
             return
         
         # Loop through the replied users dictionary
+        authors_to_remove = set()
         for user_id, time in self.replied_users.items():
             
             # How long ago the user got a reply from this bot
@@ -170,7 +171,16 @@ class ChickenBot():
             
             # Whether that reply for longer than the cooldown period (default: 1 day)
             if reply_age >= self.user_cooldown:
-                del self.replied_users[user_id]  # Remove the user from the dictionary if the cooldown period has passed
+                authors_to_remove.add(user_id)  # Queue to remove the user from the dictionary if the cooldown period has passed
+                """NOTE
+                Deleting a dictionary item during the its own iteration throws a RuntimeError.
+                So instead I am storing their ids to remove from the dict after the loop.
+                """
+        
+        # Remove the authors whose cooldown period expired
+        if authors_to_remove:
+            for user_id in authors_to_remove:
+                del self.replied_users[user_id]
     
     def make_reply(self, submission):
         """The bot gets a response from the queue and post a reply to the post.
