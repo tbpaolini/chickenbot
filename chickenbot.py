@@ -39,30 +39,19 @@ class ChickenBot():
         self.previous_post = ""     # Last post which had the question on the title
         self.wait = wait_interval   # Time to wait between checks for new posts
 
-        # Search for the newest post with the the question
-        print("Looking for the newest matching post... ", end="", flush=True)
-        for submission in self.subreddit.search(self.query, sort="new"):
-            
-            # Get the title of the post
-            title = submission.title.lower()    # Lowercase title (since substring lookup is case sensitive)
-            
-            # Is the question a substring of the title?
-            if self.question in title:
-                self.previous_post = submission.name    # Store the ID of the post
-                break   # Exit the loop once the first match is found
-        print("Finished")
-
         # Get latest users who the bot replied to
-        print("Looking for the last replied users... ", end="", flush=True)
+        print("Looking for the latest replied users... ", end="", flush=True)
         self.replied_users = dict()                             # Dictionary of users and the time of the last bot reply
         self.user_cooldown = timedelta(seconds=user_cooldown)   # How long to wait before user can get another reply (default: 1 day)
         my_comments = self.reddit.user.me().comments.new()      # Most recent comments of the bot
         self.user_refresh = timedelta(seconds=user_refresh)     # Minimum time to refresh the replied users list
         
-        for comment in my_comments:
+        for count, comment in enumerate(my_comments):
             current_time = datetime.now()                               # Time now
             comment_time = datetime.fromtimestamp(comment.created_utc)  # Time of the bot reply
             comment_age = current_time - comment_time                   # Difference between the two times
+            if count == 0:
+                self.previous_post = comment.submission.name            # Latest submission replied by bot
 
             if comment_age < self.user_cooldown:
                 # Store the user ID and comment time if the bot reply was made before the cooldown period
