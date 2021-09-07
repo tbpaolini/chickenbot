@@ -37,6 +37,7 @@ class ChickenBot():
         self.question = question.lower()
         self.query = f"(title:{self.question})"
         self.previous_post = ""     # Last post which had the question on the title
+        self.previous_reply_time = datetime.utcnow()    # Time of the latest bot reply
         self.wait = wait_interval   # Time to wait between checks for new posts
 
         # Get latest users who the bot replied to
@@ -52,6 +53,9 @@ class ChickenBot():
             comment_age = current_time - comment_time                   # Difference between the two times
             if count == 0:
                 self.previous_post = comment.submission.name            # Latest submission replied by bot
+                self.previous_reply_time = datetime.fromtimestamp(      # Time of the latest bot reply
+                    comment.created_utc
+                )
 
             if comment_age < self.user_cooldown:
                 # Store the user ID and comment time if the bot reply was made before the cooldown period
@@ -111,8 +115,14 @@ class ChickenBot():
     def submission_testing(self, submission):
         """Checks whether a submission passes the checks for getting a reply.
         
-        All checks must pass: question in the title, subreddit not on blacklist,
-        author didn't get a ChickenBot's reply within the last day (default)."""
+        All checks must pass: post made after bot's previous reply, question in
+        the title, subreddit not on blacklist, author didn't get a ChickenBot's
+        reply within the last day (default)."""
+
+        # Was the submission made after the last bot reply?
+        post_time = datetime.fromtimestamp(submission.created_utc)
+        if post_time < self.previous_reply_time:
+            return False
 
         # Is the question on the title?
         title = submission.title.lower()
@@ -201,6 +211,7 @@ class ChickenBot():
             my_comment = submission.reply(reply_text)   # Submit the reply
             self.reply_counter += 1                     # Increase the reply counter
             self.reply_counter_session += 1
+            self.has_replied = True     # Flag that the bot has replied on the current cycle
 
             # Add user to the replied users dictionary
             self.replied_users[submission.author.id] = datetime.utcnow()
@@ -229,11 +240,14 @@ class ChickenBot():
         """Main loop of the program."""
 
         while True:
+            # Track whether the bot has replied this cycle
+            self.has_replied = False
+
             # Search for posts with the question made after the previous search
             lookup = self.subreddit.search(
                 self.query,                             # Search query for the question
                 sort="new",                             # Sorted by newest posts
-                params={"before":self.previous_post},   # Made after the newest post found
+                # params={"before":self.previous_post},   # Made after the newest post found
             )
 
             # Loop through the found posts
@@ -250,6 +264,10 @@ class ChickenBot():
                 # Make a reply
                 self.make_reply(submission)
 
+            # Update the last reply time if the bot has replied this cycle
+            if self.has_replied:
+                self.previous_reply_time = datetime.utcnow()
+            
             # Wait for one hour (default) before searching again for posts
             sleep(self.wait)
 
