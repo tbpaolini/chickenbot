@@ -47,7 +47,7 @@ class ChickenBot():
         self.user_refresh = timedelta(seconds=user_refresh)     # Minimum time to refresh the replied users list
         
         for count, comment in enumerate(my_comments):
-            current_time = datetime.now()                               # Time now
+            current_time = datetime.utcnow()                               # Time now
             comment_time = datetime.fromtimestamp(comment.created_utc)  # Time of the bot reply
             comment_age = current_time - comment_time                   # Difference between the two times
             if count == 0:
@@ -58,7 +58,7 @@ class ChickenBot():
                 replied_user = comment.submission.author.id
                 self.replied_users.update({replied_user: comment_time})
         
-        self.last_refresh = datetime.now()  # Store the time that the replied users list was built
+        self.last_refresh = datetime.utcnow()  # Store the time that the replied users list was built
         print("Finished")
 
         # Load blacklist of subreddits
@@ -130,7 +130,7 @@ class ChickenBot():
         
         if user_id in self.replied_users:   # If the user is on the recent list
             reply_time = self.replied_users[user_id]    # Last time when the user gor a reply from this bot
-            reply_age = datetime.now() - reply_time     # How long has passed since then
+            reply_age = datetime.utcnow() - reply_time     # How long has passed since then
             
             if reply_age < self.user_cooldown:          # Whether the comment age is smaller than the cooldown period
                 return False
@@ -145,7 +145,7 @@ class ChickenBot():
         The check is run each 30 minutes (by default)."""
 
         # Check if the minimum refresh period has passed
-        last_refresh_age = datetime.now() - self.last_refresh
+        last_refresh_age = datetime.utcnow() - self.last_refresh
         
         # Exit the function if the minimum refresh time has not passed (default: 30 minutes)
         if last_refresh_age < self.user_refresh:
@@ -156,7 +156,7 @@ class ChickenBot():
         for user_id, time in self.replied_users.items():
             
             # How long ago the user got a reply from this bot
-            reply_age = datetime.now() - time
+            reply_age = datetime.utcnow() - time
             
             # Whether that reply for longer than the cooldown period (default: 1 day)
             if reply_age >= self.user_cooldown:
@@ -203,11 +203,11 @@ class ChickenBot():
             self.reply_counter_session += 1
 
             # Add user to the replied users dictionary
-            self.replied_users[submission.author.id] = datetime.now()
+            self.replied_users[submission.author.id] = datetime.utcnow()
 
             # Log to file the bot comment
             with open(self.log_file_name, "a", encoding="utf-8") as log_file:
-                current_time = str(datetime.now())[:19]                 # Current date and time as string (The [:19] slice strips the fractional part of the seconds)
+                current_time = str(datetime.utcnow())[:19]                 # Current date and time as string (The [:19] slice strips the fractional part of the seconds)
                 username = submission.author.name                       # Get the post author's username
                 link = my_comment.permalink                             # Reddit link to the bot comment
                 log_text = f"{current_time}\tu/{username}\t{link}\n"    # Text to be written on the log file
@@ -218,7 +218,7 @@ class ChickenBot():
             
             # Log the forbiden post to file
             with open("forbiden_log.txt", "a", encoding="utf-8") as log_file:
-                current_time = str(datetime.now())[:19]                 # Current date and time
+                current_time = str(datetime.utcnow())[:19]                 # Current date and time
                 username = submission.author.name                       # Get the post author's username
                 link = submission.permalink                             # Reddit link to the submission
                 log_text = f"{current_time}\tu/{username}\t{link}\n"    # Text to be written on the log file
