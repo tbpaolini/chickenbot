@@ -188,17 +188,13 @@ class ChickenBot():
         bot only repeats the same response after all others have been used
         at least once."""
 
-        # Whether the response queue is not empty
-        if self.responses:
-            # Get and remove a response from the queue
-            response = self.responses.pop()
-        
-        else:
+        # Whether the response queue is empty
+        if not self.responses:
             # Reload the responses list when all responses have been used
             self.refresh_responses()
 
-            # Get and remove a response from the queue
-            response = self.responses.pop()
+        # Get and remove a response from the queue
+        response = self.responses.pop().replace("&NewLine;", "\n\n")
         
         # Build the reply text
         header = ">Why did the chicken cross the road?\n\n"
