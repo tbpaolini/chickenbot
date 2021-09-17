@@ -199,7 +199,7 @@ class ChickenBot():
         # Build the reply text
         header = ">Why did the chicken cross the road?\n\n"
         footer = f"\n\n---\n\n^(This is an automatic comment made by a bot, who has answered so far to {self.reply_counter+1} doubts concerning gallinaceous roadgoing birds.)"
-        reply_text = f"{header}{response}{footer}"
+        reply_text = f"{header}{response.replace('&NewLine;', '\n\n')}{footer}"
         
         # Posting the reply
         try:
