@@ -1,5 +1,5 @@
 import praw
-from prawcore.exceptions import Forbidden
+from prawcore.exceptions import Forbidden, RequestException
 from collections import deque
 from random import shuffle
 from time import sleep
@@ -251,18 +251,25 @@ class ChickenBot():
             )
 
             # Loop through the found posts
-            for count, submission in enumerate(lookup):
-                
-                # Store the ID of the newest post
-                if count == 0:
-                    self.previous_post = submission.name
+            try:
+                for count, submission in enumerate(lookup):
+                    
+                    # Store the ID of the newest post
+                    if count == 0:
+                        self.previous_post = submission.name
 
-                # Check whether the post fits the criteria for getting a reply
-                if not self.submission_testing(submission):
-                    continue
+                    # Check whether the post fits the criteria for getting a reply
+                    if not self.submission_testing(submission):
+                        continue
 
-                # Make a reply
-                self.make_reply(submission)
+                    # Make a reply
+                    self.make_reply(submission)
+            
+            # Connection to the Reddit server failed
+            except RequestException as error:
+                print("Warning:", error, end="\n\n")
+                with open("error_log.txt", "a", encoding="utf-8") as error_log:
+                    error_log.write(error + "\n")
 
             # Update the last reply time if the bot has replied this cycle
             if self.has_replied:
