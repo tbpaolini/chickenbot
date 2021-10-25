@@ -1,5 +1,6 @@
 import praw
-from prawcore.exceptions import Forbidden, RequestException
+from prawcore.exceptions import Forbidden, PrawcoreException
+from traceback import format_exc
 from collections import deque
 from random import shuffle
 from time import sleep
@@ -214,23 +215,23 @@ class ChickenBot():
 
             # Log to file the bot comment
             with open(self.log_file_name, "a", encoding="utf-8") as log_file:
-                current_time = str(datetime.utcnow())[:19]                 # Current date and time as string (The [:19] slice strips the fractional part of the seconds)
+                current_time = str(datetime.utcnow())[:19]              # Current date and time as string (The [:19] slice strips the fractional part of the seconds)
                 username = submission.author.name                       # Get the post author's username
                 link = my_comment.permalink                             # Reddit link to the bot comment
                 log_text = f"{current_time}\tu/{username}\t{link}\n"    # Text to be written on the log file
                 log_file.write(log_text)                                # Write the log file
-                print("OK:", log_text)                                  # Print the logged text to the terminal
+                print("OK:", log_text, end="")                          # Print the logged text to the terminal
         
         except Forbidden:   # If the bot didn't have permission to reply to the post
             
             # Log the forbiden post to file
             with open("forbiden_log.txt", "a", encoding="utf-8") as log_file:
-                current_time = str(datetime.utcnow())[:19]                 # Current date and time
+                current_time = str(datetime.utcnow())[:19]              # Current date and time
                 username = submission.author.name                       # Get the post author's username
                 link = submission.permalink                             # Reddit link to the submission
                 log_text = f"{current_time}\tu/{username}\t{link}\n"    # Text to be written on the log file
                 log_file.write(log_text)                                # Write the log file
-                print("FORBIDEN:", log_text)                            # Print the logged text to the terminal
+                print("FORBIDEN:", log_text, end="")                    # Print the logged text to the terminal
 
     def main(self):
         """Main loop of the program."""
@@ -262,10 +263,15 @@ class ChickenBot():
                     self.make_reply(submission)
             
             # Connection to the Reddit server failed
-            except RequestException as error:
-                print("Warning:", error, end="\n\n")
+            except PrawcoreException as error:
+                print("Warning:", error)
+                my_exception = format_exc()
+                my_date = str(datetime.now())[:19] + "\n\n"
+
                 with open("error_log.txt", "a", encoding="utf-8") as error_log:
-                    error_log.write(error + "\n")
+                    error_log.write(my_date)
+                    error_log.write(my_exception)
+                    error_log.write("\n\n---------------\n")
 
             # Update the last reply time if the bot has replied this cycle
             if self.has_replied:
