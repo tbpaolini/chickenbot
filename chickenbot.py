@@ -264,7 +264,8 @@ class ChickenBot():
             
             # Connection to the Reddit server failed
             except PrawcoreException as error:
-                print("Warning:", error)
+                current_time = str(datetime.utcnow())[:19]
+                print("Warning:", current_time, error)
                 my_exception = format_exc()
                 my_date = str(datetime.now())[:19] + "\n\n"
 
