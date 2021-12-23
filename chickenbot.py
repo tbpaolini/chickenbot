@@ -6,6 +6,8 @@ from random import shuffle
 from time import sleep
 from datetime import datetime, timedelta
 from os import get_terminal_size
+from pathlib import Path
+import pickle
 
 class ChickenBot():
     
@@ -79,8 +81,17 @@ class ChickenBot():
         
         # Load responses
         print("Loading responses list... ", end="", flush=True)
-        self.responses = deque()
-        self.refresh_responses()
+        self.temp_file = Path("temp.bin")   # Temporary file for the responses in the queue
+        
+        if self.temp_file.exists():
+            # Load the responses from the temporary file, if one exists
+            with open(self.temp_file, "rb") as temp:
+                self.responses = pickle.load(temp)
+        else:
+            # If not, then build the response queue from scratch
+            self.responses = deque()
+            self.refresh_responses()
+        
         print("Finished")
 
         # Update the counter for the amount replies the bot has made so far
@@ -112,6 +123,17 @@ class ChickenBot():
             
             # Randomize the order of the responses
             shuffle(self.responses)
+        
+        # Create the temporary file for the responses queue
+        self.save_temp()
+    
+    def save_temp(self):
+        """Saves a temporary file for the responses queue.
+        This allows the bot, when restarted, to continue from where it stopped."""
+        
+        # Create the temporary file with the responses queue
+        with open(self.temp_file, "wb") as temp:
+            pickle.dump(self.responses, temp)
     
     def submission_testing(self, submission):
         """Checks whether a submission passes the checks for getting a reply.
@@ -196,6 +218,7 @@ class ChickenBot():
 
         # Get and remove a response from the queue
         response = self.responses.pop().replace("&NewLine;", "\n\n")
+        self.save_temp()
         
         # Build the reply text
         header = ">Why did the chicken cross the road?\n\n"
