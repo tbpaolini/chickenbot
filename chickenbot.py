@@ -1,5 +1,8 @@
 import praw
+import pickle
+import re
 from prawcore.exceptions import Forbidden, PrawcoreException
+from praw.exceptions import ClientException
 from traceback import format_exc
 from collections import deque
 from random import shuffle
@@ -7,7 +10,9 @@ from time import sleep
 from datetime import datetime, timedelta
 from os import get_terminal_size
 from pathlib import Path
-import pickle
+from threading import Thread
+from signal import signal, SIGINT
+from urllib.parse import quote
 
 class ChickenBot():
     
@@ -17,6 +22,7 @@ class ChickenBot():
         wait_interval = 3600,   # Time in seconds for searching new posts
         user_cooldown = 86400,  # Time in seconds for when an user can get a new reply from the bot
         user_refresh = 1800,    # Minimum time in seconds for cleaning the replied users list
+        message_wait = 900,     # Minimum time in seconds for checking new private messages
         counter_start = 0,      # The starting value of the bot replies counter
     ):
         """The bot works by searching each 1 hour (default) for the question in the title
@@ -109,6 +115,10 @@ class ChickenBot():
             pass
         print("Finished")
 
+        # Interval to check for private messages
+        self.message_wait = message_wait
+
+        self.running = True     # Indicate to the threads that the bot is running
         separator = "".ljust(get_terminal_size().columns - 1, "-")
         print(f"ChickenBot has started! Bot is now running.\n{separator}")
         
@@ -244,6 +254,16 @@ class ChickenBot():
                 log_text = f"{current_time}\tu/{username}\t{link}\n"    # Text to be written on the log file
                 log_file.write(log_text)                                # Write the log file
                 print("OK:", log_text, end="")                          # Print the logged text to the terminal
+            
+            # Generate link so the original poster can delete the comment
+            # (the 'urllib.parse.quote()' function escapes special characters and spaces)
+            message_subject = quote("Removal of ChickenBot's comment", safe="")
+            message_body = quote(f"Please remove {link}\n\n[do not edit the first line]", safe="")
+            removal_link = f"/message/compose/?to=u%2FChickenRoad_Bot&subject={message_subject}&message={message_body}"
+            
+            # Edit the comment to append the removal link
+            edited_comment = my_comment.body[:-1] + f" If you are the thread's author, you can [click here]({removal_link}) to delete this comment (takes up to 15 minutes).)"
+            my_comment.edit(edited_comment)
         
         except Forbidden as error:   # If the bot didn't have permission to reply to the post
             
@@ -271,10 +291,10 @@ class ChickenBot():
                 error_log.write(my_exception)
                 error_log.write("\n\n---------------\n")
 
-    def main(self):
-        """Main loop of the program."""
+    def check_submissions(self):
+        """Look for submissions for replying to."""
 
-        while True:
+        while self.running:
             # Track whether the bot has replied this cycle
             self.has_replied = False
 
@@ -318,11 +338,133 @@ class ChickenBot():
             
             # Wait for one hour (default) before searching again for posts
             sleep(self.wait)
+    
+    def private_messages(self):
+        """Listens to the bot account's private chat, in order to process removal requests."""
+
+        # Regular expression to extract the comment ID from the message body
+        message_regex = re.compile(r"remove /r/.+?/comments/.+?/.+?/(\w+)")
+
+        # Bot's user ID
+        my_id = self.reddit.user.me().fullname
+        
+        # Check for new private messages
+        while self.running:
+            private_inbox = self.reddit.inbox.messages()
+            for message in private_inbox:
+
+                # Skip the message if it has already been read
+                if not message.new: continue
+
+                # Mark the message as "read"
+                message.mark_read()
+                
+                # Get the author and the requested comment
+                message_author_id = message.author_fullname
+                message_author = self.reddit.redditor(fullname=message_author_id)
+                if message_author is None: continue
+                
+                # Get the comment ID from the message
+                search = message_regex.search(message.body)
+                if search is None: continue
+                comment_id = search.group(1)
+                
+                try:
+                    # Get the paramentes of the comment's thread
+                    comment = self.reddit.comment(comment_id)
+                    post_id = comment.link_id.split("_")[1]
+                    post = self.reddit.submission(post_id)
+                    post_title = post.title
+                    post_url = post.permalink
+                    post_author_id = post.author_fullname
+                
+                except (ClientException, AttributeError):
+                    # If the comment was not found
+                    if "remov" in message.subject:
+                        message_author.message(
+                            subject = "ChickenBot comment removal",
+                            message = f"Sorry, the requested comment '{comment_id}' could not be found. Possibly it was already deleted."
+                        )
+                    continue
+                
+                # Permanent link to the comment
+                comment_url = comment.permalink
+
+                # Verify the author and respond
+                
+                if post_author_id == message_author_id:
+                    # Delete comment if it was requested by the own author
+
+                    # Check if the bot is the comment's author
+                    if comment.author_fullname == my_id:
+                        comment.delete()
+                        message_author.message(
+                            subject = "ChickenBot comment removed",
+                            message = f"I have deleted [my comment]({comment_url}) from your post [{post_title}]({post_url}).\n\nSorry for any inconvenience that the bot might have caused."
+                        )
+                        
+                        # The bot won't post to this author's threads for the duration of their cooldown time
+                        self.replied_users[post.author.id] = datetime.utcnow()
+                    
+                    else:
+                        message_author.message(
+                            subject = "ChickenBot comment removal",
+                            message = "Sorry, the bot can only delete comments made by itself."
+                        )
+
+                else:
+                    # Refuse to delete if it was someone else who requested
+                    message_author.message(
+                        subject = "ChickenBot comment",
+                        message = f"Sorry, only the original poster u/{post.author.name} can request the removal of [my comment]({comment_url}) on the thread [{post_title}]({post_url})."
+                    )
+            
+            # Wait for some time before checking for new private messages
+            sleep(self.message_wait)
+    
+    def main(self):
+        """Main loop of the program"""
+        
+        # Create threads for the listeners
+        submissions_listener = Thread(target=self.check_submissions)
+        messages_listener = Thread(target=self.private_messages)
+        
+        # Set the threads to 'daemoninc'
+        # (daemon threads do not prevent their parent program from exiting)
+        submissions_listener.daemon = True
+        messages_listener.daemon = True
+
+        # Begin the child threads
+        submissions_listener.start()
+        messages_listener.start()
+
+        # Catch a keyboard interrupt, so the threads can terminate and the program exit
+        signal(SIGINT, self.clean_exit)
+        while True:
+            submissions_listener.join(1)
+            messages_listener.join(1)
+        """NOTE
+        In Python, there isn't any actual 'clean' way to terminate a thread.
+        By default, a KeyboardInterrupt is caught by an arbitrary thread,
+        while others remain running.
+
+        Using the signal() function forces the main thread to catch the interrupt.
+        Then the bot set the 'self.running' flag to False, which makes the its child
+        threads to exit their loop.
+
+        Finally, the whole program exits.
+        """
+    
+    def clean_exit(self):
+        """Close the program."""
+
+        self.running = False
+        raise SystemExit
 
 
 if __name__ == "__main__":
     try:
         bot = ChickenBot()
         bot.main()
-    except KeyboardInterrupt:
+    except (SystemExit, KeyboardInterrupt):
         print(f"\nBot stopped running. ({bot.reply_counter} replies in total, {bot.reply_counter_session} in this session)")
