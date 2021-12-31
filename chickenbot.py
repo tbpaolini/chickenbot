@@ -262,7 +262,7 @@ class ChickenBot():
             removal_link = f"/message/compose/?to=u%2FChickenRoad_Bot&subject={message_subject}&message={message_body}"
             
             # Edit the comment to append the removal link
-            edited_comment = my_comment.body[:-1] + f" If you are the thread's author, you can [click here]({removal_link}) to delete this comment (takes up to 15 minutes).)"
+            edited_comment = my_comment.body + f" ^(If you are the thread's author, you can) [^(click here)]({removal_link}) ^(to delete this comment \(takes up to 15 minutes\).)"
             my_comment.edit(edited_comment)
         
         except Forbidden as error:   # If the bot didn't have permission to reply to the post
