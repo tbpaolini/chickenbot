@@ -455,7 +455,7 @@ class ChickenBot():
         Finally, the whole program exits.
         """
     
-    def clean_exit(self):
+    def clean_exit(self, *args):
         """Close the program."""
 
         self.running = False
