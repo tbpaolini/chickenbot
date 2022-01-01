@@ -350,74 +350,88 @@ class ChickenBot():
         
         # Check for new private messages
         while self.running:
-            private_inbox = self.reddit.inbox.messages()
-            for message in private_inbox:
+            try:
+                private_inbox = self.reddit.inbox.messages()
+                for message in private_inbox:
 
-                # Skip the message if it has already been read
-                if not message.new: continue
+                    # Skip the message if it has already been read
+                    if not message.new: continue
 
-                # Mark the message as "read"
-                message.mark_read()
-                
-                # Get the author and the requested comment
-                message_author_id = message.author_fullname
-                message_author = self.reddit.redditor(fullname=message_author_id)
-                if message_author is None: continue
-                
-                # Get the comment ID from the message
-                search = message_regex.search(message.body)
-                if search is None: continue
-                comment_id = search.group(1)
-                
-                try:
-                    # Get the paramentes of the comment's thread
-                    comment = self.reddit.comment(comment_id)
-                    post_id = comment.link_id.split("_")[1]
-                    post = self.reddit.submission(post_id)
-                    post_title = post.title
-                    post_url = post.permalink
-                    post_author_id = post.author_fullname
-                
-                except (ClientException, AttributeError):
-                    # If the comment was not found
-                    if "remov" in message.subject:
-                        message_author.message(
-                            subject = "ChickenBot comment removal",
-                            message = f"Sorry, the requested comment '{comment_id}' could not be found. Possibly it was already deleted."
-                        )
-                    continue
-                
-                # Permanent link to the comment
-                comment_url = comment.permalink
-
-                # Verify the author and respond
-                
-                if post_author_id == message_author_id:
-                    # Delete comment if it was requested by the own author
-
-                    # Check if the bot is the comment's author
-                    if comment.author_fullname == my_id:
-                        comment.delete()
-                        message_author.message(
-                            subject = "ChickenBot comment removed",
-                            message = f"The bot has deleted [its comment]({comment_url}) from your post [{post_title}]({post_url}).\n\nSorry for any inconvenience that the bot might have caused."
-                        )
-                        
-                        # The bot won't post to this author's threads for the duration of their cooldown time
-                        self.replied_users[post.author.id] = datetime.utcnow()
+                    # Mark the message as "read"
+                    message.mark_read()
                     
-                    else:
-                        message_author.message(
-                            subject = "ChickenBot comment removal",
-                            message = "Sorry, the bot can only delete comments made by itself."
-                        )
+                    # Get the author and the requested comment
+                    message_author_id = message.author_fullname
+                    message_author = self.reddit.redditor(fullname=message_author_id)
+                    if message_author is None: continue
+                    
+                    # Get the comment ID from the message
+                    search = message_regex.search(message.body)
+                    if search is None: continue
+                    comment_id = search.group(1)
+                    
+                    try:
+                        # Get the paramentes of the comment's thread
+                        comment = self.reddit.comment(comment_id)
+                        post_id = comment.link_id.split("_")[1]
+                        post = self.reddit.submission(post_id)
+                        post_title = post.title
+                        post_url = post.permalink
+                        post_author_id = post.author_fullname
+                    
+                    except (ClientException, AttributeError):
+                        # If the comment was not found
+                        if "remov" in message.subject:
+                            message_author.message(
+                                subject = "ChickenBot comment removal",
+                                message = f"Sorry, the requested comment '{comment_id}' could not be found. Possibly it was already deleted."
+                            )
+                        continue
+                    
+                    # Permanent link to the comment
+                    comment_url = comment.permalink
 
-                else:
-                    # Refuse to delete if it was someone else who requested
-                    message_author.message(
-                        subject = "ChickenBot comment",
-                        message = f"Sorry, only the original poster u/{post.author.name} can request the removal of [my comment]({comment_url}) on the thread [{post_title}]({post_url})."
-                    )
+                    # Verify the author and respond
+                    
+                    if post_author_id == message_author_id:
+                        # Delete comment if it was requested by the own author
+
+                        # Check if the bot is the comment's author
+                        if comment.author_fullname == my_id:
+                            comment.delete()
+                            message_author.message(
+                                subject = "ChickenBot comment removed",
+                                message = f"The bot has deleted [its comment]({comment_url}) from your post [{post_title}]({post_url}).\n\nSorry for any inconvenience that the bot might have caused."
+                            )
+                            
+                            # The bot won't post to this author's threads for the duration of their cooldown time
+                            self.replied_users[post.author.id] = datetime.utcnow()
+                        
+                        else:
+                            message_author.message(
+                                subject = "ChickenBot comment removal",
+                                message = "Sorry, the bot can only delete comments made by itself."
+                            )
+
+                    else:
+                        # Refuse to delete if it was someone else who requested
+                        message_author.message(
+                            subject = "ChickenBot comment",
+                            message = f"Sorry, only the original poster u/{post.author.name} can request the removal of [my comment]({comment_url}) on the thread [{post_title}]({post_url})."
+                        )
+            
+            # Logs the error if something wrong happens while handling messages
+            # (probably Reddit was down or the user blocked the bot)
+            except PrawcoreException as error:
+                current_time = str(datetime.utcnow())[:19]
+                print("Warning:", current_time, error)
+                my_exception = format_exc()
+                my_date = str(datetime.now())[:19] + "\n\n"
+
+                with open("error_log.txt", "a", encoding="utf-8") as error_log:
+                    error_log.write(my_date)
+                    error_log.write(my_exception)
+                    error_log.write("\n\n---------------\n")
             
             # Wait for some time before checking for new private messages
             sleep(self.message_wait)
