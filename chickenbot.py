@@ -39,6 +39,7 @@ class ChickenBot():
         print("Starting up ChickenBot...")
         print("Logging in Reddit... ", end="", flush=True)
         self.reddit = praw.Reddit()
+        self.reddit.validate_on_submit = True
         self.subreddit = self.reddit.subreddit(subreddit)
         print("Finished")
 
