@@ -2,7 +2,7 @@ import praw
 import pickle
 import re
 from prawcore.exceptions import Forbidden, PrawcoreException
-from praw.exceptions import ClientException
+from praw.exceptions import ClientException, RedditAPIException
 from traceback import format_exc
 from collections import deque
 from random import shuffle
@@ -263,7 +263,8 @@ class ChickenBot():
             removal_link = f"/message/compose/?to=u%2FChickenRoad_Bot&subject={message_subject}&message={message_body}"
             
             # Edit the comment to append the removal link
-            edited_comment = my_comment.body + f" ^(If you are the thread's author, you can) [^(click here)]({removal_link}) ^(to delete this comment.)"
+            edited_comment = my_comment.body + f"^( If you are the thread's author, you can )[^(click here)]({removal_link})^( to delete this comment.)"
+            sleep(5)
             my_comment.edit(edited_comment)
         
         except Forbidden as error:   # If the bot didn't have permission to reply to the post
@@ -320,9 +321,10 @@ class ChickenBot():
 
                     # Make a reply
                     self.make_reply(submission)
+                    sleep(5)
             
             # Connection to the Reddit server failed
-            except PrawcoreException as error:
+            except (PrawcoreException, RedditAPIException) as error:
                 current_time = str(datetime.utcnow())[:19]
                 print("Warning:", current_time, error)
                 my_exception = format_exc()
@@ -423,7 +425,7 @@ class ChickenBot():
             
             # Logs the error if something wrong happens while handling messages
             # (probably Reddit was down or the user blocked the bot)
-            except PrawcoreException as error:
+            except (PrawcoreException, RedditAPIException) as error:
                 current_time = str(datetime.utcnow())[:19]
                 print("Warning:", current_time, error)
                 my_exception = format_exc()
